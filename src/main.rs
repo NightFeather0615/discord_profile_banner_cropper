@@ -70,10 +70,14 @@ fn change_profile_banner(discord_user_token: String) {
 }
 
 fn main() {
+    println!("Starting...");
     dotenv().ok();
+    println!(".ENV loaded.");
     let discord_user_token: String = env::var("DISCORD_USER_TOKEN").expect("Load .ENV failed.");
+    println!("Discord user token loaded.");
     let mut scheduler = Scheduler::new();
     scheduler.every(1.day()).at("00:00:00").run(move || change_profile_banner(discord_user_token.to_owned()));
+    println!("Start scheduler loop.");
     loop {
         scheduler.run_pending();
         thread::sleep(Duration::from_secs(60));
