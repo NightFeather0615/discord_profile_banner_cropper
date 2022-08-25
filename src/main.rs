@@ -46,7 +46,8 @@ fn crop_image(day_offset: u32) {
 }
 
 fn change_profile_banner(discord_user_token: String) {
-    crop_image(get_day_offset());
+    let day_offset = get_day_offset();
+    crop_image(day_offset);
 
     let client = reqwest::blocking::Client::new();
     
@@ -64,6 +65,8 @@ fn change_profile_banner(discord_user_token: String) {
         .multipart(profile_banner_data)
         .send()
         .expect("Profile edit failed.");
+
+    println!("Change banner succeed, offset: {:}", day_offset);
 }
 
 fn main() {
