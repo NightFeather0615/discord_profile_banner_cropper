@@ -1,7 +1,7 @@
 # discord_profile_banner_cropper
 
 ## Feature
-Auto crop banner image in offset loop (default is 10, build from source to change) and patch to your Discord profile (req. Discord Nitro).
+Everyday auto crop banner image in offset loop (default is 10, build from source to change) and patch to your Discord profile (req. Discord Nitro).
 
 ## Usage
 1. Create a folder, download `discord_profile_banner_cropper.exe` from releases, then put it in the folder.
