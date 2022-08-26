@@ -1,12 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::env;
+use std::thread;
+use std::io::Cursor;
 use std::convert::TryInto;
+use std::collections::HashMap;
+use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 use image::{imageops, ImageFormat};
 use clokwerk::{Scheduler, TimeUnits};
-use std::thread;
-use std::time::Duration;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use dotenv::dotenv;
-use std::env;
 
 const DISCORD_PROFILE_BANNER_ASPECT_RATIO: (f32, f32) = (5.0, 2.0);
 const OFFSET_HOUR_CYCLE: u32 = 10;
@@ -45,6 +47,14 @@ fn crop_image(hour_offset: u32) {
         .expect("Image process failed.");
 }
 
+fn read_image_as_base64(path: &str) -> String {
+    let image = image::open(path).expect("File not found.");
+    let mut image_buffer: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+    image.write_to(&mut image_buffer, image::ImageOutputFormat::Png).expect("Write image to bytes failed.");
+    let image_base64 = base64::encode(&image_buffer.get_ref());
+    return format!("data:image/png;base64,{}", image_base64);
+}
+
 fn change_profile_banner(discord_user_token: String) {
     let hour_offset = get_hour_offset();
     crop_image(hour_offset);
@@ -56,13 +66,12 @@ fn change_profile_banner(discord_user_token: String) {
     headers.insert("Content-Type", HeaderValue::from_str("application/json").unwrap());
     headers.insert("User-Agent", HeaderValue::from_str("discord/1.0.9005 Chrome/91.0.4472.164 Electron/13.6.6").unwrap());
 
-    let profile_banner_data = reqwest::blocking::multipart::Form::new()
-        .file("banner", "./src/cropped.jpeg")
-        .expect("File load failed.");
+    let mut data = HashMap::new();
+    data.insert("banner", read_image_as_base64("./src/cropped.jpeg"));
 
     client.patch("https://discord.com/api/v9/users/@me/profile")
         .headers(headers)
-        .multipart(profile_banner_data)
+        .json(&data)
         .send()
         .expect("Profile edit failed.");
 
@@ -76,7 +85,7 @@ fn main() {
     let discord_user_token: String = env::var("DISCORD_USER_TOKEN").expect("Load .ENV failed.");
     println!("Discord user token loaded.");
     let mut scheduler = Scheduler::new();
-    scheduler.every(1.hours()).run(move || change_profile_banner(discord_user_token.to_owned()));
+    scheduler.every(1.hour()).run(move || change_profile_banner(discord_user_token.to_owned()));
     println!("Start scheduler loop.");
     loop {
         scheduler.run_pending();
