@@ -1,7 +1,7 @@
 # discord_profile_banner_cropper
 
 ## Feature
-Everyday auto crop banner image in offset loop (default is 10, build from source to change) and patch to your Discord profile (req. Discord Nitro).
+Every hour auto crop banner image in offset loop (default is 10, build from source to change) and patch to your Discord profile (req. Discord Nitro).
 
 ## Usage
 Note: The release only work on 64-bit Windows, you need build from source for other OS.  
