@@ -76,7 +76,7 @@ fn main() {
     let discord_user_token: String = env::var("DISCORD_USER_TOKEN").expect("Load .ENV failed.");
     println!("Discord user token loaded.");
     let mut scheduler = Scheduler::new();
-    scheduler.every(1.hour()).run(move || change_profile_banner(discord_user_token.to_owned()));
+    scheduler.every(1.hours()).run(move || change_profile_banner(discord_user_token.to_owned()));
     println!("Start scheduler loop.");
     loop {
         scheduler.run_pending();
