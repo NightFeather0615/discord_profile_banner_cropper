@@ -10,37 +10,88 @@ use clokwerk::{Scheduler, TimeUnits};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use dotenv::dotenv;
 
-const DISCORD_PROFILE_BANNER_ASPECT_RATIO: (f32, f32) = (5.0, 2.0);
-const OFFSET_HOUR_CYCLE: u32 = 10;
+const DISCORD_PROFILE_BANNER_ASPECT_RATIO: AspectRatio = AspectRatio::new(
+    5.0,
+    2.0
+);
+const OFFSET_CYCLE: u32 = 10;
+const MINUTES_PER_CYCLE: u32 = 15;
 
-fn get_hour_offset() -> u32 {
+struct AspectRatio {
+    width: f32,
+    height: f32
+}
+
+impl AspectRatio {
+    const fn new(width: f32, height: f32) -> AspectRatio {
+        return AspectRatio { width, height };
+    }
+
+    pub fn height_rate(self: &Self) -> f32 {
+        return self.height / self.width;
+    }
+
+    pub fn width_rate(self: &Self) -> f32 {
+        return self.width / self.height;
+    }
+}
+
+struct ImageSizeData {
+    width: u32,
+    height: u32
+}
+
+impl ImageSizeData {
+    const fn new(width: u32, height: u32) -> ImageSizeData {
+        return ImageSizeData { width, height };
+    }
+
+    fn from_width(width: u32, aspect_ratio: AspectRatio) -> ImageSizeData {
+        return ImageSizeData::new(
+            width,
+            (width as f32 * aspect_ratio.height_rate()) as u32
+        );
+    }
+
+    fn from_height(height: u32, aspect_ratio: AspectRatio) -> ImageSizeData {
+        return ImageSizeData::new(
+            (height as f32 * aspect_ratio.width_rate()) as u32,
+            height
+        );
+    }
+
+    pub fn map_from_aspect_ratio(self: &Self, aspect_ratio: AspectRatio) -> ImageSizeData {
+        if self.width > self.height {
+            return ImageSizeData::from_height(self.height, aspect_ratio);
+        } else {
+            return ImageSizeData::from_width(self.width, aspect_ratio);
+        }
+    }
+}
+
+fn get_time_offset() -> u32 {
     let unix_timestamp_now: u32 = (
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Get Unix timestamp failed.")
-            .as_secs() / 3600
+            .as_secs() / (MINUTES_PER_CYCLE * 60) as u64
     )
         .try_into()
         .expect("Try From Int failed.");
-    return (unix_timestamp_now as f32 % OFFSET_HOUR_CYCLE as f32) as u32;
+    return (unix_timestamp_now as f32 % OFFSET_CYCLE as f32) as u32;
 }
 
-fn mapping_aspect_ratio(width: u32, _height: u32) -> (u32, u32) {
-    let height_radio = DISCORD_PROFILE_BANNER_ASPECT_RATIO.1 / DISCORD_PROFILE_BANNER_ASPECT_RATIO.0;
-    return (width, (width as f32 * height_radio) as u32);
-}
-
-fn crop_image(hour_offset: u32) {
+fn crop_image(time_offset: u32) {
     let mut source_image = image::open("./src/source.jpeg").expect("File not found.");
-    let aspect_ratio: (u32, u32) = (source_image.width(), source_image.height());
+    let source_image_size: ImageSizeData = ImageSizeData::new(source_image.width(), source_image.height());
 
-    let mapped_aspect_ratio: (u32, u32) = mapping_aspect_ratio(aspect_ratio.0, aspect_ratio.1);
-    let height_offset: u32 = (aspect_ratio.1 - mapped_aspect_ratio.1) / (OFFSET_HOUR_CYCLE - 1);
+    let mapped_image_size: ImageSizeData = source_image_size.map_from_aspect_ratio(DISCORD_PROFILE_BANNER_ASPECT_RATIO);
+    let height_offset: u32 = (source_image_size.height - mapped_image_size.height) / (OFFSET_CYCLE - 1);
 
     imageops::crop(
         &mut source_image,
-        0, height_offset * hour_offset,
-        mapped_aspect_ratio.0, mapped_aspect_ratio.1
+        0, height_offset * time_offset,
+        mapped_image_size.width, mapped_image_size.height
     )
         .to_image()
         .save_with_format("./src/cropped.jpeg", ImageFormat::Jpeg)
@@ -56,8 +107,8 @@ fn read_image_as_base64(path: &str) -> String {
 }
 
 fn change_profile_banner(discord_user_token: String) {
-    let hour_offset = get_hour_offset();
-    crop_image(hour_offset);
+    let time_offset = get_time_offset();
+    crop_image(time_offset);
 
     let client = reqwest::blocking::Client::new();
     
@@ -75,17 +126,21 @@ fn change_profile_banner(discord_user_token: String) {
         .send()
         .expect("Profile edit failed.");
 
-    println!("Change banner succeed, offset: {:}", hour_offset);
+    println!("Change banner succeed, offset: {time_offset}");
 }
 
 fn main() {
     println!("Starting...");
+    if MINUTES_PER_CYCLE < 10 {
+        println!("Minutes per cycle lower then 10 mins will hit Discord's ratelimit.");
+        std::process::exit(1);
+    }
     dotenv().ok();
     println!(".ENV loaded.");
     let discord_user_token: String = env::var("DISCORD_USER_TOKEN").expect("Load .ENV failed.");
     println!("Discord user token loaded.");
     let mut scheduler = Scheduler::new();
-    scheduler.every(1.hour()).run(move || change_profile_banner(discord_user_token.to_owned()));
+    scheduler.every(MINUTES_PER_CYCLE.minutes()).run(move || change_profile_banner(discord_user_token.to_owned()));
     println!("Start scheduler loop.");
     loop {
         scheduler.run_pending();
