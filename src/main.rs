@@ -14,7 +14,7 @@ const DISCORD_PROFILE_BANNER_ASPECT_RATIO: AspectRatio = AspectRatio::new(
     5.0,
     2.0
 );
-const OFFSET_CYCLE: u32 = 10;
+const OFFSET_CYCLE_STEP: u32 = 10;
 const MINUTES_PER_CYCLE: u32 = 15;
 
 struct AspectRatio {
@@ -78,19 +78,25 @@ fn get_time_offset() -> u32 {
     )
         .try_into()
         .expect("Try From Int failed.");
-    return (unix_timestamp_now as f32 % OFFSET_CYCLE as f32) as u32;
+    return (unix_timestamp_now as f32 % OFFSET_CYCLE_STEP as f32) as u32;
 }
 
 fn crop_image(time_offset: u32) {
     let mut source_image = image::open("./src/source.jpeg").expect("File not found.");
     let source_image_size: ImageSizeData = ImageSizeData::new(source_image.width(), source_image.height());
-
     let mapped_image_size: ImageSizeData = source_image_size.map_from_aspect_ratio(DISCORD_PROFILE_BANNER_ASPECT_RATIO);
-    let height_offset: u32 = (source_image_size.height - mapped_image_size.height) / (OFFSET_CYCLE - 1);
 
+    let mut width_offset: u32 = 0;
+    let mut height_offset: u32 = 0;
+    if source_image_size.height > source_image_size.width {
+        height_offset = (source_image_size.height - mapped_image_size.height) / (OFFSET_CYCLE_STEP - 1);
+    } else {
+        width_offset = (source_image_size.width - mapped_image_size.width) / (OFFSET_CYCLE_STEP - 1);
+    }
+    
     imageops::crop(
         &mut source_image,
-        0, height_offset * time_offset,
+        width_offset * time_offset, height_offset * time_offset,
         mapped_image_size.width, mapped_image_size.height
     )
         .to_image()
